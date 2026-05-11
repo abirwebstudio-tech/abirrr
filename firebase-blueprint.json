@@ -1,0 +1,127 @@
+/**
+ * Defines the structure for the Alpha Omega Inter Church Trust database.
+ */
+{
+  "entities": {
+    "Comment": {
+      "title": "Public Comment",
+      "description": "User shared feedback or testimony",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "content", "createdAt"]
+    },
+    "Donation": {
+      "title": "Donation Record",
+      "description": "A financial contribution record",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["monthly", "one-time"] },
+        "method": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["amount", "type", "createdAt"]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "Authenticated user information and roles",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["super-admin", "sub-admin", "user"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role", "createdAt"]
+    },
+    "Volunteer": {
+      "title": "Volunteer Application",
+      "description": "Records of volunteer expressions of interest",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "skills": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "phone", "skills", "createdAt"]
+    },
+    "AdminLog": {
+      "title": "Admin Action Log",
+      "description": "Records of administrative actions for auditing",
+      "type": "object",
+      "properties": {
+        "adminId": { "type": "string" },
+        "adminName": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adminId", "adminName", "action", "timestamp"]
+    },
+    "Newsletter": {
+      "title": "Newsletter Subscription",
+      "description": "Email for monthly mission updates",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "subscribedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "subscribedAt"]
+    },
+    "Report": {
+      "title": "Impact Report",
+      "description": "Administrative report for download",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "tag": { "type": "string" },
+        "desc": { "type": "string" },
+        "content": { "type": "string" },
+        "author": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "date", "tag", "desc", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Publicly viewable community feedback"
+    },
+    "/donations/{donationId}": {
+      "schema": "Donation",
+      "description": "Private records of contributions"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "System user profiles and permissions"
+    },
+    "/volunteers/{volunteerId}": {
+      "schema": "Volunteer",
+      "description": "Volunteer application records"
+    },
+    "/logs/{logId}": {
+      "schema": "AdminLog",
+      "description": "Administrative audit logs"
+    },
+    "/newsletter/{subscriberId}": {
+      "schema": "Newsletter",
+      "description": "Newsletter subscriber list"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Impact reports for public download"
+    }
+  }
+}

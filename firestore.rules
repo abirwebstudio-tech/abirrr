@@ -1,0 +1,206 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny Catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Global Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Hardcoded super-admin email — always has super-admin access regardless of DB role
+    function isSuperAdminEmail() {
+      return isSignedIn() && request.auth.token.email == 'abirwebstudio@gmail.com';
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        isSuperAdminEmail() ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super-admin'
+      );
+    }
+
+    function isSubAdmin() {
+      return isSignedIn() && 
+        !isSuperAdminEmail() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'sub-admin';
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || isSubAdmin();
+    }
+
+    function isRole(userId, role) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role == role;
+    }
+
+    // --- Validation Helpers ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'role', 'createdAt'])
+        && data.role in ['super-admin', 'sub-admin', 'user']
+        && data.createdAt == request.time;
+    }
+
+    function isValidVolunteer(data) {
+      return data.keys().hasAll(['name', 'email', 'phone', 'skills', 'createdAt'])
+        && data.keys().size() == 5
+        && data.name is string && data.name.size() <= 100
+        && data.email is string && data.email.size() <= 100
+        && data.phone is string && data.phone.size() <= 20
+        && data.skills is string && data.skills.size() <= 5000
+        && data.createdAt == request.time;
+    }
+
+    function isValidComment(data) {
+      return data.keys().hasAll(['userId', 'userName', 'content', 'createdAt']) 
+        && data.keys().size() == 4
+        && data.userId == request.auth.uid
+        && data.userName is string && data.userName.size() <= 100
+        && data.content is string && data.content.size() >= 1 && data.content.size() <= 2000
+        && data.createdAt == request.time;
+    }
+
+    function isValidNewsletter(data) {
+      return data.keys().hasAll(['email', 'subscribedAt'])
+        && data.keys().size() == 2
+        && data.email is string && data.email.size() <= 150
+        && data.subscribedAt == request.time;
+    }
+
+    function isValidDonation(data) {
+      return data.keys().hasAll(['amount', 'type', 'createdAt', 'method', 'userId'])
+        && data.keys().size() == 5
+        && data.amount is number && data.amount > 0
+        && data.type in ['monthly', 'one-time']
+        && data.method is string && data.method.size() <= 50
+        && data.createdAt == request.time
+        && (data.userId == 'guest' || (isSignedIn() && data.userId == request.auth.uid));
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasAll(['adminId', 'adminName', 'action', 'details', 'timestamp'])
+        && data.keys().size() == 5
+        && data.adminId == request.auth.uid
+        && data.adminName is string && data.adminName.size() <= 200
+        && data.action is string && data.action.size() <= 500
+        && data.details is string && data.details.size() <= 2000
+        && data.timestamp == request.time;
+    }
+
+    // --- Collections ---
+
+    // Public Comments
+    match /comments/{commentId} {
+      allow get: if true;
+      allow list: if true;
+      
+      allow create: if isEmailVerified() 
+        && isValidId(commentId)
+        && isValidComment(incoming());
+        
+      allow update: if false;
+      allow delete: if isAdmin() || isOwner(existing().userId);
+    }
+
+    // Donations
+    match /donations/{donationId} {
+      allow get: if isSignedIn() && (isOwner(existing().userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isValidId(donationId)
+        && isValidDonation(incoming());
+        
+      allow update, delete: if isAdmin();
+    }
+
+    // Admin Logs
+    match /logs/{logId} {
+      allow list, get: if isAdmin();
+      allow create: if isAdmin() && isValidLog(incoming());
+      allow update, delete: if false;
+    }
+
+    // Newsletter
+    match /newsletter/{subscriberId} {
+      allow create: if isValidNewsletter(incoming());
+      allow read, delete: if isAdmin();
+      allow update: if false;
+    }
+
+    // Volunteers
+    match /volunteers/{volunteerId} {
+      allow create: if isValidVolunteer(incoming());
+      allow read, delete: if isAdmin();
+      allow update: if false;
+    }
+
+    // Users & RBAC
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isSignedIn(); // Required for first-user logic in AuthProvider
+
+      allow create: if isOwner(userId) && isValidUser(incoming()) && (
+        incoming().role == 'user' || 
+        incoming().role == 'super-admin' ||
+        // Hardcoded super-admin email can always create as super-admin
+        isSuperAdminEmail()
+      );
+
+      allow update: if (
+        // Super Admin (including hardcoded email) can do anything
+        isSuperAdmin() ||
+        // Sub Admin can:
+        //   - promote regular users to sub-admin
+        //   - demote regular users
+        //   - update their own non-role fields
+        // Sub Admin CANNOT:
+        //   - touch super-admin users
+        //   - promote anyone to super-admin
+        //   - change other sub-admins' roles
+        (isSubAdmin() && 
+          !isRole(userId, 'super-admin') &&        // target must not be super-admin
+          incoming().role != 'super-admin' &&       // cannot promote to super-admin
+          !isRole(userId, 'sub-admin') &&           // cannot change other sub-admins
+          incoming().role in ['sub-admin', 'user']  // can only assign sub-admin or user
+        ) ||
+        // Sub-admin can resign themselves (set own role to user)
+        (isSubAdmin() && isOwner(userId) && incoming().role == 'user') ||
+        // User can update their own non-role fields
+        (isOwner(userId) && incoming().role == existing().role)
+      );
+
+      allow delete: if (
+        // Super Admin can delete anyone except themselves (use resign for that)
+        (isSuperAdmin() && !isOwner(userId)) ||
+        // Sub Admin can only delete regular users, NOT super-admins or other sub-admins
+        (isSubAdmin() && !isRole(userId, 'super-admin') && !isRole(userId, 'sub-admin') && !isOwner(userId)) ||
+        // Anyone can delete their own account (self-removal)
+        isOwner(userId)
+      );
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Alpha Omega Inter Church Trust",
+  "description": "A modern nonprofit platform dedicated to child welfare, education, healthcare, and community support in Bangladesh.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["Authentication", "Real-time Comments", "Donation UI", "Data Visualization"]
+}
