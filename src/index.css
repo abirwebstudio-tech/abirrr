@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0A0A0A;
+  --color-secondary: #F27D26;
+  --color-accent: #FFFFFF;
+  --color-surface: #121212;
+  --color-ink: #FFFFFF;
+  
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Anton', sans-serif;
+  --font-serif: 'Playfair Display', serif;
+}
+
+@layer base {
+  body {
+    @apply bg-primary text-ink font-sans antialiased;
+  }
+  
+  h1, h2, h3 {
+    @apply font-display uppercase tracking-tight leading-[0.9];
+  }
+
+  h4, h5, h6 {
+    @apply font-serif italic;
+  }
+}
+
+.glass-card {
+  @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl;
+}
+
+.gradient-bg {
+  @apply bg-gradient-to-br from-primary via-primary/95 to-primary/90;
+}
